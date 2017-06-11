@@ -1,4 +1,5 @@
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -90,17 +91,92 @@ class Index {
 
 public class HelloLucene {
 	public static void main(String[] args) throws IOException, XMLStreamException {
-		// 0. Specify the analyzer for tokenizing text.
+		// Specify the analyzer for tokenizing the text.
 		// The same analyzer should be used for indexing and searching
 		SimpleAnalyzer analyzer = new SimpleAnalyzer();
-		// 1. create the index
+		//Use the ram directory for creating index
 		Directory index = new RAMDirectory();
-
 		IndexWriterConfig config = new IndexWriterConfig(analyzer);
+		//Create the index writer used to write the index.
 		IndexWriter w = new IndexWriter(index, config);
-
-		XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
+		//Take filepath from the command line.
 		String filePath = args.length > 0 ? args[0] : "E:\\will_play_text.xml";
+		//Parse the XML and index it.
+		parseAndExtract(w, filePath);
+
+		
+		IndexReader reader = DirectoryReader.open(index);
+		TermStats[] result;
+		List<String> terms = new ArrayList<String>();
+		try {
+			result = HighFreqTerms.getHighFreqTerms(reader, 1000, "text_entry", new HighFreqTerms.TotalTermFreqComparator());
+			int counter = 1;
+			System.out.format("%10s%10s%10s\n", "No", "Text", "Frequency");
+			for (TermStats stats : result) {
+				System.out.format("%10d%10s%10d\n", counter, stats.termtext.utf8ToString(), stats.totalTermFreq);
+				terms.add(stats.termtext.utf8ToString());
+				counter++;
+			}
+			int raiseToPower = 0;
+			System.out.println(
+					"\n\n------------------------------------OR Queries------------------------------------\n\n");
+			System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken", "Result Count");
+			Occur occur = BooleanClause.Occur.SHOULD;
+			List<Double> times = new ArrayList<Double>();
+			for (int i = 0; i < 200; i++) {
+				if (i == 100) {
+					System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
+					System.out.format("%10s%20s%20s%15s%20f%20s\n", "", "", "", "",
+							times.stream().mapToDouble(Double::doubleValue).sum() / 100, "");
+					times = new ArrayList<Double>();
+					occur = BooleanClause.Occur.MUST;
+					System.out.println(
+							"\n\n------------------------------------AND Queries------------------------------------\n\n");
+					System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken",
+							"Result Count");
+					raiseToPower = 0;
+				}
+				
+				String term1 = terms.get(getRandomIndex(terms.size()));
+				String term2 = terms.get(getRandomIndex(terms.size()));
+				
+				BooleanQuery.Builder categoryQuery = getQuery(occur, term1, term2);
+				int hitsPerPage = (int) Math.pow(2, raiseToPower);
+				IndexSearcher searcher = new IndexSearcher(reader);
+				double startTime = System.nanoTime();
+				TopDocs docs = searcher.search(categoryQuery.build(), hitsPerPage);
+				double currentTime = System.nanoTime();
+				// Get the elapsed time in milliseconds
+				double timeTaken = (currentTime - startTime) / 1000000;
+				times.add(timeTaken);
+				ScoreDoc[] hits = docs.scoreDocs;
+				System.out.format("%10d%20s%20s%15d%20f%20d\n", i + 1, term1, term2, hitsPerPage, timeTaken,
+						hits.length);
+				if (raiseToPower == 7) {
+					raiseToPower = 0;
+				} else {
+					raiseToPower++;
+				}
+				if (raiseToPower == 4 || raiseToPower == 6) {
+					raiseToPower++;
+				}
+				if (i == 199) {
+					System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
+					System.out.format("%10s%20s%20s%15s%20f%20s\n", "", "", "", "",
+							times.stream().mapToDouble(Double::doubleValue).sum() / 100, "");
+				}
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		reader.close();
+	}
+
+	private static void parseAndExtract(IndexWriter w, String filePath)
+			throws FactoryConfigurationError, FileNotFoundException, XMLStreamException, IOException {
+		XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
 		// Load the XML from the file system.
 		InputStream inputStream = new FileInputStream(filePath);
 		// We are using SAX parsing hence we need to parse events and
@@ -152,84 +228,23 @@ public class HelloLucene {
 				}
 			} else if (xmlEvent.isEndElement() && xmlEvent.asEndElement().getName().getLocalPart().equals("table")
 					&& idx.getPlayName() != null) {
-				addDoc(w, idx);
+				addToIndex(w, idx);
 				idx = new Index();
 			}
 		}
 		w.close();
-
-		IndexReader reader = DirectoryReader.open(index);
-		TermStats[] result;
-		List<String> terms = new ArrayList<String>();
-		try {
-			result = HighFreqTerms.getHighFreqTerms(reader, 1000, "text_entry", new HighFreqTerms.DocFreqComparator());
-			int counter = 1;
-			System.out.format("%10s%10s%10s\n", "No", "Text", "Frequency");
-			for (TermStats stats : result) {
-				System.out.format("%10d%10s%10d\n", counter, stats.termtext.utf8ToString(), stats.totalTermFreq);
-				terms.add(stats.termtext.utf8ToString());
-				counter++;
-			}
-			int raiseToPower = 0;
-			System.out.println(
-					"\n\n------------------------------------OR Queries------------------------------------\n\n");
-			System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken", "Result Count");
-			Occur occur = BooleanClause.Occur.SHOULD;
-			List<Double> times = new ArrayList<Double>();
-			for (int i = 0; i < 200; i++) {
-				if (i == 100) {
-					System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
-					System.out.format("%10s%20s%20s%15s%20f%20s\n", "", "", "", "",
-							times.stream().mapToDouble(Double::doubleValue).sum() / 100, "");
-					times = new ArrayList<Double>();
-					occur = BooleanClause.Occur.MUST;
-					System.out.println(
-							"\n\n------------------------------------AND Queries------------------------------------\n\n");
-					System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken",
-							"Result Count");
-					raiseToPower = 0;
-				}
-				BooleanQuery.Builder categoryQuery = new BooleanQuery.Builder();
-				String term1 = terms.get(getRandomIndex(terms.size()));
-				String term2 = terms.get(getRandomIndex(terms.size()));
-				TermQuery catQuery1 = new TermQuery(new Term("text_entry", term1));
-				TermQuery catQuery2 = new TermQuery(new Term("text_entry", term2));
-				categoryQuery.add(new BooleanClause(catQuery1, occur));
-				categoryQuery.add(new BooleanClause(catQuery2, occur));
-				int hitsPerPage = (int) Math.pow(2, raiseToPower);
-				IndexSearcher searcher = new IndexSearcher(reader);
-				double startTime = System.nanoTime();
-				TopDocs docs = searcher.search(categoryQuery.build(), hitsPerPage);
-				double currentTime = System.nanoTime();
-				// Get the elapsed time in milliseconds
-				double timeTaken = (currentTime - startTime) / 1000000;
-				times.add(timeTaken);
-				ScoreDoc[] hits = docs.scoreDocs;
-				System.out.format("%10d%20s%20s%15d%20f%20d\n", i + 1, term1, term2, hitsPerPage, timeTaken,
-						hits.length);
-				if (raiseToPower == 7) {
-					raiseToPower = 0;
-				} else {
-					raiseToPower++;
-				}
-				if (raiseToPower == 4 || raiseToPower == 6) {
-					raiseToPower++;
-				}
-				if (i == 199) {
-					System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
-					System.out.format("%10s%20s%20s%15s%20f%20s\n", "", "", "", "",
-							times.stream().mapToDouble(Double::doubleValue).sum() / 100, "");
-				}
-			}
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		reader.close();
 	}
 
-	private static void addDoc(IndexWriter w, Index idx) throws IOException {
+	private static BooleanQuery.Builder getQuery(Occur occur, String term1, String term2) {
+		BooleanQuery.Builder categoryQuery = new BooleanQuery.Builder();
+		TermQuery catQuery1 = new TermQuery(new Term("text_entry", term1));
+		TermQuery catQuery2 = new TermQuery(new Term("text_entry", term2));
+		categoryQuery.add(new BooleanClause(catQuery1, occur));
+		categoryQuery.add(new BooleanClause(catQuery2, occur));
+		return categoryQuery;
+	}
+
+	private static void addToIndex(IndexWriter w, Index idx) throws IOException {
 		Document doc = new Document();
 		doc.add(new TextField("line_id", idx.getLineId(), Field.Store.YES));
 		doc.add(new TextField("play_name", idx.getPlayName(), Field.Store.YES));
@@ -241,7 +256,7 @@ public class HelloLucene {
 	}
 
 	private static int getRandomIndex(int length) {
-		Random Dice = new Random();
-		return Dice.nextInt(length);
+		Random dice = new Random();
+		return dice.nextInt(length);
 	}
 }

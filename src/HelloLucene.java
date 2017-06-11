@@ -33,7 +33,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 
 /**
- * @author karth
+ * @author 6797076
  *
  */
 class Index {
@@ -94,7 +94,7 @@ class Index {
 }
 
 /**
- * @author karth
+ * @author 6797076
  *
  */
 public class HelloLucene {
@@ -137,7 +137,8 @@ public class HelloLucene {
 			// Boilerplate for pretty printing results.
 			System.out.println(
 					"\n\n------------------------------------OR Queries------------------------------------\n\n");
-			System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken", "Result Count");
+			System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken",
+					"Result Count");
 			System.out.println(
 					"----------------------------------------------------------------------------------------------------------");
 			// For a BooleanQuery with no MUST clauses one or more SHOULD
@@ -176,7 +177,7 @@ public class HelloLucene {
 					if (raiseToPower == 4 || raiseToPower == 6) {
 						raiseToPower++;
 					}
-					//Number of results.
+					// Number of results.
 					int hitsPerPage = (int) Math.pow(2, raiseToPower);
 					double startTime = System.nanoTime();
 					// Query the index for the query generated.
@@ -189,7 +190,7 @@ public class HelloLucene {
 					// Log the results to the console.
 					System.out.format("%10d%20s%20s%15d%20f%20d\n", i + 1, term1, term2, hitsPerPage, timeTaken,
 							hits.length);
-					//Print the average
+					// Print the average
 					if (raiseToPower == 7) {
 						System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
 						System.out.format("%10s%20s%20s%15s%20f%20s\n\n\n", "", "", "", "",
@@ -302,13 +303,15 @@ public class HelloLucene {
 	}
 
 	/**
-	 * @param w Index writer
-	 * @param idx The object which contains all the data to be indexed
+	 * @param w
+	 *            Index writer
+	 * @param idx
+	 *            The object which contains all the data to be indexed
 	 * @throws IOException
 	 */
 	private static void addToIndex(IndexWriter w, Index idx) throws IOException {
 		Document doc = new Document();
-		//Index and tokenize all the fields in the XML.
+		// Index and tokenize all the fields in the XML.
 		doc.add(new TextField("line_id", idx.getLineId(), Field.Store.YES));
 		doc.add(new TextField("play_name", idx.getPlayName(), Field.Store.YES));
 		doc.add(new TextField("speech_number", idx.getSpeechNumber(), Field.Store.YES));

@@ -112,47 +112,47 @@ public class HelloLucene {
 		// Parse the XML and index it.
 		parseAndExtract(w, filePath);
 
-		//Get handle of the reader to read from the indexes.
+		// Get handle of the reader to read from the indexes.
 		IndexReader reader = DirectoryReader.open(index);
-		//Array to store the top 1000 frequently used terms in the XML.
+		// Array to store the top 1000 frequently used terms in the XML.
 		TermStats[] result;
 		List<String> terms = new ArrayList<String>();
 		try {
-			//Get the top 1000 frequently used terms from the "text_entry" field. If null is passed then it queries 
+			// Get the top 1000 frequently used terms from the "text_entry"
+			// field. If null is passed then it queries
 			result = HighFreqTerms.getHighFreqTerms(reader, 1000, "text_entry",
 					new HighFreqTerms.TotalTermFreqComparator());
 			int counter = 1;
-			//Log it to the console.
+			// Log it to the console.
+			System.out.println("The 1000 most frequent terms in the XML\n\n");
 			System.out.format("%10s%10s%10s\n", "No", "Text", "Frequency");
 			System.out.println("--------------------------------------------");
 			for (TermStats stats : result) {
 				System.out.format("%10d%10s%10d\n", counter, stats.termtext.utf8ToString(), stats.totalTermFreq);
-				//Store the termtext as text to generate OR and AND queries later.
+				// Store the termtext as text to generate OR and AND queries
+				// later.
 				terms.add(stats.termtext.utf8ToString());
 				counter++;
 			}
-			//Since we have to compute results for 1,2,4,8,32 and 128, we are using pow(2,x) to gernerate those numbers.
-			int raiseToPower = 0;
-			//Boilerplate for pretty printing results.
+			// Boilerplate for pretty printing results.
 			System.out.println(
 					"\n\n------------------------------------OR Queries------------------------------------\n\n");
 			System.out.format("%10s%20s%20s%15s%20s%20s\n", "No", "Term1", "Term2", "N", "Time Taken", "Result Count");
 			System.out.println(
 					"----------------------------------------------------------------------------------------------------------");
-			//For a BooleanQuery with no MUST clauses one or more SHOULD clauses must match a document for the BooleanQuery to match. (OR queries)
+			// For a BooleanQuery with no MUST clauses one or more SHOULD
+			// clauses must match a document for the BooleanQuery to match. (OR
+			// queries)
 			Occur occur = BooleanClause.Occur.SHOULD;
-			//List to hold the times to calculate the average.
-			List<Double> times = new ArrayList<Double>();
-			//Iterating 200 times the first 100 to generate OR queries and the next 100 to generate AND queries. 
+
+			// Iterating 200 times the first 100 to generate OR queries and the
+			// next 100 to generate AND queries.
 			for (int i = 0; i < 200; i++) {
-				//Once we encounter index 100 it is time to switch to AND queries since we have already generated 100 OR queries.
+				// List to hold the times to calculate the average.
+				List<Double> times = new ArrayList<Double>();
+				// Once we encounter index 100 it is time to switch to AND
+				// queries since we have already generated 100 OR queries.
 				if (i == 100) {
-					//Pretty print.
-					System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
-					System.out.format("%10s%20s%20s%15s%20f%20s\n", "", "", "", "",
-							times.stream().mapToDouble(Double::doubleValue).sum() / 100, "");
-					times = new ArrayList<Double>();
-					//Use this operator for clauses that must appear in the matching documents. (AND queries)
 					occur = BooleanClause.Occur.MUST;
 					System.out.println(
 							"\n\n------------------------------------AND Queries------------------------------------\n\n");
@@ -160,45 +160,44 @@ public class HelloLucene {
 							"Result Count");
 					System.out.println(
 							"----------------------------------------------------------------------------------------------------------");
-					raiseToPower = 0;
 				}
 
-				//Get 2 random terms from a list of top 1000 frequently used terms. 
+				// Get 2 random terms from a list of top 1000 frequently used
+				// terms.
 				String term1 = terms.get(getRandomIndex(terms.size()));
 				String term2 = terms.get(getRandomIndex(terms.size()));
-
-				//Create a boolean query.
-				BooleanQuery.Builder categoryQuery = getQuery(occur, term1, term2);
-				//For n=1,2,4,8,32,128
-				int hitsPerPage = (int) Math.pow(2, raiseToPower);
-				//Initialize the searcher.
+				// Initialize the searcher.
 				IndexSearcher searcher = new IndexSearcher(reader);
-				double startTime = System.nanoTime();
-				//Query the index for the query generated.
-				TopDocs docs = searcher.search(categoryQuery.build(), hitsPerPage);
-				double currentTime = System.nanoTime();
-				// Get the elapsed time in milliseconds
-				double timeTaken = (currentTime - startTime) / 1000000;
-				times.add(timeTaken);
-				ScoreDoc[] hits = docs.scoreDocs;
-				//Log the results to the console.
-				System.out.format("%10d%20s%20s%15d%20f%20d\n", i + 1, term1, term2, hitsPerPage, timeTaken,
-						hits.length);
-				//We need to query from n =1,2,4,8,32,and 128, hence we reset the variable to 0 once we reach 128 which is pow(2,7) 
-				if (raiseToPower == 7) {
-					raiseToPower = 0;
-				} else {
-					raiseToPower++;
-				}
-				//We don't need pow(2,4) and pow(2,6)
-				if (raiseToPower == 4 || raiseToPower == 6) {
-					raiseToPower++;
-				}
-				//Log average time taken for all the AND queries to the console.
-				if (i == 199) {
-					System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
-					System.out.format("%10s%20s%20s%15s%20f%20s\n", "", "", "", "",
-							times.stream().mapToDouble(Double::doubleValue).sum() / 100, "");
+				// Create a boolean query.
+				BooleanQuery.Builder categoryQuery = getQuery(occur, term1, term2);
+				// For n=1,2,4,8,32,128
+				for (int raiseToPower = 0; raiseToPower <= 7; raiseToPower++) {
+					// We don't need pow(2,4) and pow(2,6)
+					if (raiseToPower == 4 || raiseToPower == 6) {
+						raiseToPower++;
+					}
+					//Number of results.
+					int hitsPerPage = (int) Math.pow(2, raiseToPower);
+					double startTime = System.nanoTime();
+					// Query the index for the query generated.
+					TopDocs docs = searcher.search(categoryQuery.build(), hitsPerPage);
+					double currentTime = System.nanoTime();
+					// Get the elapsed time in milliseconds
+					double timeTaken = (currentTime - startTime) / 1000000;
+					times.add(timeTaken);
+					ScoreDoc[] hits = docs.scoreDocs;
+					// Log the results to the console.
+					System.out.format("%10d%20s%20s%15d%20f%20d\n", i + 1, term1, term2, hitsPerPage, timeTaken,
+							hits.length);
+					//Print the average
+					if (raiseToPower == 7) {
+						System.out.format("%10s%20s%20s%15s%20s%20s\n", "", "", "", "", "---------", "");
+						System.out.format("%10s%20s%20s%15s%20f%20s\n\n\n", "", "", "", "",
+								times.stream().mapToDouble(Double::doubleValue).sum() / 6, "");
+						// List to hold the times to calculate the average.
+						times = new ArrayList<Double>();
+					}
+
 				}
 			}
 		} catch (Exception e) {
@@ -206,7 +205,7 @@ public class HelloLucene {
 			e.printStackTrace();
 		}
 
-		//Close the reader.
+		// Close the reader.
 		reader.close();
 	}
 
@@ -232,7 +231,8 @@ public class HelloLucene {
 		Index idx = new Index();
 		while (xmlEventReader.hasNext()) {
 			XMLEvent xmlEvent = xmlEventReader.nextEvent();
-			//Check if the tag is a start element and check if it it a column tag
+			// Check if the tag is a start element and check if it it a column
+			// tag
 			if (xmlEvent.isStartElement() && xmlEvent.asStartElement().getName().getLocalPart().equals("column")) {
 				Iterator<?> iterator = xmlEvent.asStartElement().getAttributes();
 
@@ -241,10 +241,11 @@ public class HelloLucene {
 					String name = attribute.getValue();
 					xmlEvent = xmlEventReader.nextEvent();
 					if (xmlEvent.isCharacters()) {
-						//Get the value inside a tag.
+						// Get the value inside a tag.
 						String value = xmlEvent.asCharacters().getData() != null ? xmlEvent.asCharacters().getData()
 								: "";
-						//Switch based on the attribute value and set it to the model we created.
+						// Switch based on the attribute value and set it to the
+						// model we created.
 						switch (name) {
 						case "line_id":
 							idx.setLineId(value);
@@ -270,21 +271,25 @@ public class HelloLucene {
 					}
 
 				}
-			//If an end element of type table is encountered we have parsed one document and it is now safe to write it to the index. 
+				// If an end element of type table is encountered we have parsed
+				// one document and it is now safe to write it to the index.
 			} else if (xmlEvent.isEndElement() && xmlEvent.asEndElement().getName().getLocalPart().equals("table")
 					&& idx.getPlayName() != null) {
 				addToIndex(w, idx);
 				idx = new Index();
 			}
 		}
-		//Close the writer.
+		// Close the writer.
 		w.close();
 	}
 
 	/**
-	 * @param occur Specify whether you need an AND or OR query.
-	 * @param term1 The first term to query.
-	 * @param term2 The second term to query.
+	 * @param occur
+	 *            Specify whether you need an AND or OR query.
+	 * @param term1
+	 *            The first term to query.
+	 * @param term2
+	 *            The second term to query.
 	 * @return The generated query.
 	 */
 	private static BooleanQuery.Builder getQuery(Occur occur, String term1, String term2) {
@@ -296,8 +301,14 @@ public class HelloLucene {
 		return categoryQuery;
 	}
 
+	/**
+	 * @param w Index writer
+	 * @param idx The object which contains all the data to be indexed
+	 * @throws IOException
+	 */
 	private static void addToIndex(IndexWriter w, Index idx) throws IOException {
 		Document doc = new Document();
+		//Index and tokenize all the fields in the XML.
 		doc.add(new TextField("line_id", idx.getLineId(), Field.Store.YES));
 		doc.add(new TextField("play_name", idx.getPlayName(), Field.Store.YES));
 		doc.add(new TextField("speech_number", idx.getSpeechNumber(), Field.Store.YES));
